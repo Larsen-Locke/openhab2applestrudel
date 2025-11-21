@@ -1,0 +1,656 @@
+[
+    {
+        "id": "tab_full_alexa",
+        "type": "tab",
+        "label": "Alexa MQTT Steuerung",
+        "disabled": false,
+        "info": "Alexa Steuerung über MQTT für openHAB"
+    },
+    {
+        "id": "mqtt_in_all",
+        "type": "mqtt in",
+        "z": "tab_full_alexa",
+        "name": "MQTT IN openhab/alexa/+/+",
+        "topic": "openhab/alexa/+/+",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "mqttBrokerNode",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 157,
+        "y": 359.00000190734863,
+        "wires": [
+            [
+                "debug_pre",
+                "dynamic_router"
+            ]
+        ]
+    },
+    {
+        "id": "debug_pre",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug MQTT Raw",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 447,
+        "y": 459.00000190734863,
+        "wires": []
+    },
+    {
+        "id": "dynamic_router",
+        "type": "function",
+        "z": "tab_full_alexa",
+        "name": "Dynamic Router (global.echos)",
+        "func": "// Dynamic Router: benutzt global.echos (Name -> serial)\n// Topic: openhab/alexa/<DeviceName>/<action>\nconst parts = (msg.topic || \"\").split('/');\nconst deviceName = parts[2] || \"\";\nconst action = parts[3] || \"\";\nconst pl = msg.payload;\n\nlet deviceMap = global.get('echos') || {};\nif (!deviceMap || Object.keys(deviceMap).length === 0) {\n    node.warn('global.echos leer — bitte Get Echo Devices ausführen');\n}\n\nconst serialNumber = deviceMap[deviceName];\nif (!serialNumber) {\n    node.error(`Gerät '${deviceName}' nicht in global.echos gefunden!`);\n    return null;\n}\n\nlet routineMap = global.get('routines') || {};\n\nmsg.device = deviceName;\nmsg.serialNumber = serialNumber;\n\nswitch(action) {\n    case 'speak':\n        // applestrudel erwartet msg.payload = { type:'speak', payload:{...} }\n        msg.payload = {\n            type: 'speak',\n            payload: {\n                type: 'regular',\n                text: String(pl),\n                devices: [serialNumber]\n            }\n        };\n        return [msg, null, null, null, null];\n\n    case 'volume':\n        msg.payload = {\n            type: 'volume',\n            payload: {\n                value: Number(pl),\n                devices: [serialNumber]\n            }\n        };\n        return [null, msg, null, null, null];\n\n    case 'speakvolume':\n        msg.payload = {\n            type: 'volume',\n            payload: {\n                value: Number(pl),\n                tts: true,\n                devices: [serialNumber]\n            }\n        };\n        return [null, null, msg, null, null];\n/*\n    case 'announce':\n        msg.payload = {\n            type: 'speak',\n            payload: {\n                type: 'announce',\n                text: String(pl),\n                devices: [serialNumber]\n            }\n        };\n        return [null, null, null, msg, null];\n*/\n    case 'announce':\n        msg.payload = {\n            type: 'speak',\n            payload: {\n                type: 'announcement',   // <-- genau SO\n                text: String(pl),\n                devices: [serialNumber]\n            }\n        };\n    return [null, null, null, msg, null];\n    \n    case 'routine':\n        // pl sollte der Name der Routine sein\n        const routineName = String(pl);\n        const routineId = routineMap[routineName];\n\n        if (!routineId) {\n            node.error(`Routine '${routineName}' nicht in global.routines gefunden!`);\n            return null;\n        }\n\n        msg.device = serialNumber;\n\n        msg.payload = {\n            type: 'routine',\n            payload: { \n                routine: routineId,\n                device: [serialNumber]\n            }\n    \n        };\n        return [null, null, null, null, msg];\n\n\n    default:\n        node.warn('Unknown action: ' + action);\n        return null;\n}\n",
+        "outputs": 5,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 487,
+        "y": 379.00000190734863,
+        "wires": [
+            [
+                "alexa_speak"
+            ],
+            [
+                "alexa_volume"
+            ],
+            [
+                "alexa_speakvolume"
+            ],
+            [
+                "alexa_announce"
+            ],
+            [
+                "alexa_routine"
+            ]
+        ]
+    },
+    {
+        "id": "alexa_speak",
+        "type": "alexa-remote-routine",
+        "z": "tab_full_alexa",
+        "name": "Speak (TTS)",
+        "account": "alexaAccount",
+        "routineNode": {
+            "type": "msg",
+            "value": "payload"
+        },
+        "x": 800,
+        "y": 352.0000114440918,
+        "wires": [
+            [
+                "aeb6a85bf96f2203"
+            ]
+        ]
+    },
+    {
+        "id": "alexa_volume",
+        "type": "alexa-remote-routine",
+        "z": "tab_full_alexa",
+        "name": "Set Volume",
+        "account": "alexaAccount",
+        "routineNode": {
+            "type": "msg",
+            "value": "payload"
+        },
+        "x": 800,
+        "y": 412.0000114440918,
+        "wires": [
+            [
+                "dd27d1421b70d630"
+            ]
+        ]
+    },
+    {
+        "id": "alexa_speakvolume",
+        "type": "alexa-remote-routine",
+        "z": "tab_full_alexa",
+        "name": "Set Speak Volume",
+        "account": "alexaAccount",
+        "routineNode": {
+            "type": "msg",
+            "value": "payload"
+        },
+        "x": 820,
+        "y": 472.0000114440918,
+        "wires": [
+            [
+                "53f66119d2aa19cc"
+            ]
+        ]
+    },
+    {
+        "id": "alexa_announce",
+        "type": "alexa-remote-routine",
+        "z": "tab_full_alexa",
+        "name": "Announcement",
+        "account": "alexaAccount",
+        "routineNode": {
+            "type": "msg",
+            "value": "payload"
+        },
+        "x": 810,
+        "y": 532.0000114440918,
+        "wires": [
+            [
+                "119a085384cd7368"
+            ]
+        ]
+    },
+    {
+        "id": "alexa_routine",
+        "type": "alexa-remote-routine",
+        "z": "tab_full_alexa",
+        "name": "Run Routine",
+        "account": "alexaAccount",
+        "routineNode": {
+            "type": "msg",
+            "value": "payload"
+        },
+        "x": 800,
+        "y": 592.0000114440918,
+        "wires": [
+            [
+                "725e3e241d2ab282"
+            ]
+        ]
+    },
+    {
+        "id": "aeb6a85bf96f2203",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug speak",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1020,
+        "y": 352.0000114440918,
+        "wires": []
+    },
+    {
+        "id": "dd27d1421b70d630",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Volume",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1030,
+        "y": 412.0000114440918,
+        "wires": []
+    },
+    {
+        "id": "53f66119d2aa19cc",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Volume speak",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1050,
+        "y": 472.0000114440918,
+        "wires": []
+    },
+    {
+        "id": "119a085384cd7368",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Announcement",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1050,
+        "y": 532.0000114440918,
+        "wires": []
+    },
+    {
+        "id": "725e3e241d2ab282",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Routine",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1030,
+        "y": 592.0000114440918,
+        "wires": []
+    },
+    {
+        "id": "e56772b842118878",
+        "type": "alexa-remote-event",
+        "z": "tab_full_alexa",
+        "name": "Event: ws-device-activity",
+        "account": "alexaAccount",
+        "event": "ws-device-activity",
+        "x": 143,
+        "y": 669.9999737739563,
+        "wires": [
+            [
+                "5aa56a1e63032694",
+                "b694145bf5b42a2a"
+            ]
+        ]
+    },
+    {
+        "id": "5aa56a1e63032694",
+        "type": "function",
+        "z": "tab_full_alexa",
+        "name": "get LastVoiceCommand",
+        "func": "// Alexa Voice History Parser → openHAB MQTT LastVoice\nlet data = msg.payload?.data;\nif (!data) { node.warn(\"No data found in payload\"); return null; }\nlet device = data.device?.deviceName || data.name || \"unknown\";\nlet command = data.description?.summary || data.voiceHistoryRecordItems?.[0]?.transcriptText || data.conversionDetails?.ASR_REPLACEMENT_TEXT?.[0]?.transcriptText || \"\";\nif (typeof command === \"string\") command = command.trim().replace(\"alexa \",\"\");\nif (!command) { return null; }\nmsg.topic = `openhab/alexa/${device}/state/lastvoice`;\nmsg.payload = command;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 443,
+        "y": 669.9999737739563,
+        "wires": [
+            [
+                "0a2ea769bbc9cc83",
+                "27fa01f87c858480"
+            ]
+        ]
+    },
+    {
+        "id": "0a2ea769bbc9cc83",
+        "type": "mqtt out",
+        "z": "tab_full_alexa",
+        "name": "MQTT OUT lastvoice",
+        "topic": "",
+        "qos": "1",
+        "retain": false,
+        "broker": "mqttBrokerNode",
+        "x": 713,
+        "y": 669.9999737739563,
+        "wires": []
+    },
+    {
+        "id": "27fa01f87c858480",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug lastVoiceCommand",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 740,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "b694145bf5b42a2a",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Alexa-Event",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 427,
+        "y": 721.9999775886536,
+        "wires": []
+    },
+    {
+        "id": "a051ec8e7b0e0ae1",
+        "type": "alexa-remote-echo",
+        "z": "tab_full_alexa",
+        "name": "Get Echo Devices",
+        "account": "alexaAccount",
+        "config": {
+            "option": "get",
+            "value": {
+                "what": "device",
+                "device": {
+                    "type": "str",
+                    "value": "ALEXA_ALL_DSN"
+                }
+            }
+        },
+        "x": 450,
+        "y": 160,
+        "wires": [
+            [
+                "filter_and_store_echos",
+                "09bd7f944bceb85a"
+            ]
+        ]
+    },
+    {
+        "id": "8d26706e30698739",
+        "type": "alexa-remote-init",
+        "z": "tab_full_alexa",
+        "name": "",
+        "account": "alexaAccount",
+        "option": "fresh",
+        "x": 720,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "77d971d3701e71c5",
+        "type": "inject",
+        "z": "tab_full_alexa",
+        "name": "Inject",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 490,
+        "y": 40,
+        "wires": [
+            [
+                "8d26706e30698739"
+            ]
+        ]
+    },
+    {
+        "id": "d92aeac196f76097",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Echo Devices",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1040,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "filter_and_store_echos",
+        "type": "function",
+        "z": "tab_full_alexa",
+        "name": "Filter + Store Echo IDs",
+        "func": "// Kombinierter Filter + Store\nlet devices = msg.payload;\nif (!Array.isArray(devices)) { node.error(\"Payload ist kein Array!\", msg); return null; }\n\n// Filter: nur echte Echo-Geräte (deviceFamily ECHO oder ähnliche)\nlet out = devices\n    .filter(d => d && d.deviceFamily && [\"ECHO\",\"KNIGHT\",\"ROOK\",\"SPEAKER\",\"WHA\"].includes (d.deviceFamily))\n    .filter(d => d.accountName && d.serialNumber)\n    .map(d => ({ name: d.accountName, serial: d.serialNumber }));\n\n// Map Name -> Serial\nlet map = {};\nout.forEach(d => { map[d.name] = d.serial; });\n\nglobal.set('echos', map);\nnode.warn('Saved echo map with ' + Object.keys(map).length + ' entries');\n\nmsg.payload = map;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 742,
+        "y": 150.99999332427979,
+        "wires": [
+            [
+                "d92aeac196f76097"
+            ]
+        ]
+    },
+    {
+        "id": "startup_inject",
+        "type": "inject",
+        "z": "tab_full_alexa",
+        "name": "Startup Check (once)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "8",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 162,
+        "y": 150.99999332427979,
+        "wires": [
+            [
+                "a051ec8e7b0e0ae1",
+                "c52ce4618560cc94"
+            ]
+        ]
+    },
+    {
+        "id": "def522ed1b6c7a9d",
+        "type": "comment",
+        "z": "tab_full_alexa",
+        "name": "trigger in case you need a fresh authentication",
+        "info": "",
+        "x": 190,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "89a1d8e79f13e6b9",
+        "type": "comment",
+        "z": "tab_full_alexa",
+        "name": "auto-started ",
+        "info": "",
+        "x": 90,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "42b992407add7abe",
+        "type": "comment",
+        "z": "tab_full_alexa",
+        "name": "process commands from openHAB",
+        "info": "",
+        "x": 160,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "3b165086e9bc7115",
+        "type": "comment",
+        "z": "tab_full_alexa",
+        "name": "get lastVoiceCommand #1",
+        "info": "",
+        "x": 130,
+        "y": 620,
+        "wires": []
+    },
+    {
+        "id": "09bd7f944bceb85a",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Echo Devices In",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 752,
+        "y": 110.99999332427979,
+        "wires": []
+    },
+    {
+        "id": "c52ce4618560cc94",
+        "type": "alexa-remote-other",
+        "z": "tab_full_alexa",
+        "name": "",
+        "account": "alexaAccount",
+        "config": {
+            "option": "get",
+            "value": {
+                "what": "automationRoutines"
+            }
+        },
+        "x": 470,
+        "y": 220,
+        "wires": [
+            [
+                "27f846f2267d9738",
+                "3d499beec2ed5034"
+            ]
+        ]
+    },
+    {
+        "id": "27f846f2267d9738",
+        "type": "function",
+        "z": "tab_full_alexa",
+        "name": "Filter + Store Routine IDs",
+        "func": "// Filter + Store Routine IDs\nlet routines = msg.payload;\nif (!Array.isArray(routines)) {\n    node.error(\"Payload ist kein Array!\", msg);\n    return null;\n}\n\nlet map = {};\nroutines.forEach(d => {\n    if (d && d.name && d.automationId) {\n        map[d.name] = d.automationId;\n    }\n});\n\nglobal.set('routines', map);\nnode.warn('Saved routine map with ' + Object.keys(map).length + ' entries');\n\nmsg.payload = map;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 750,
+        "y": 220,
+        "wires": [
+            [
+                "df7e7eb08ae91d0a"
+            ]
+        ]
+    },
+    {
+        "id": "df7e7eb08ae91d0a",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Echo Routines",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1060,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "3d499beec2ed5034",
+        "type": "debug",
+        "z": "tab_full_alexa",
+        "name": "Debug Echo Routines In",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 750,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "mqttBrokerNode",
+        "type": "mqtt-broker",
+        "name": "MQTT 192.168.1.112",
+        "broker": "192.168.1.112",
+        "port": "1883",
+        "clientid": "nodered-alexa",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "alexaAccount",
+        "type": "alexa-remote-account",
+        "name": "Amazon DE Account",
+        "authMethod": "proxy",
+        "proxyOwnIp": "192.168.1.112",
+        "proxyPort": "5678",
+        "cookieFile": "/home/openhabian/.node-red/alexa.cookie",
+        "refreshInterval": "",
+        "alexaServiceHost": "layla.amazon.de",
+        "pushDispatchHost": "",
+        "amazonPage": "amazon.de",
+        "acceptLanguage": "de-DE",
+        "onKeywordInLanguage": "",
+        "userAgent": "",
+        "usePushConnection": "on",
+        "autoInit": "on",
+        "autoQueryActivityOnTrigger": "on"
+    },
+    {
+        "id": "a96d0cf4e8e06192",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-alexa-remote2-applestrudel": "5.0.55"
+        }
+    }
+]
